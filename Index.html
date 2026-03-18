@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Аналітика: 14 точних категорій</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #1e293b; }
+        .card { background: white; border-radius: 20px; border: 1px solid #e2e8f0; transition: all 0.3s ease; }
+        .card:hover { border-color: #cbd5e1; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <main class="max-w-[1440px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 mt-4">
+        
+        <!-- Sidebar: Filter -->
+        <aside class="lg:col-span-3 space-y-6">
+            <div class="card p-6 sticky top-8 shadow-sm">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest">Фільтр категорій</h3>
+                    <span id="activeCount" class="bg-blue-50 text-blue-600 text-[10px] font-bold px-2 py-0.5 rounded-full">14 активних</span>
+                </div>
+                <div id="categoryFilters" class="space-y-1.5 max-h-[750px] overflow-y-auto pr-2 custom-scrollbar text-[13px]">
+                    <!-- Injected by JS -->
+                </div>
+                <div class="mt-8 pt-4 border-t border-slate-100 flex justify-between">
+                    <button onclick="toggleAll(true)" class="text-xs text-blue-600 font-bold hover:text-blue-800 transition-all">Усі</button>
+                    <button onclick="toggleAll(false)" class="text-xs text-slate-400 font-bold hover:text-slate-600 transition-all">Очистити</button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Content Area: Main Chart -->
+        <div class="lg:col-span-9 space-y-8">
+            
+            <div class="card p-8 shadow-sm">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+                    <div>
+                        <h2 class="text-xl font-extrabold text-slate-800 uppercase tracking-tight">Динаміка за 6 місяців</h2>
+                        <p class="text-sm text-slate-400 font-medium italic"></p>
+                    </div>
+                    <div class="flex items-center bg-slate-100 p-1 rounded-xl">
+                        <button id="btnRev" onclick="switchMetric('revenue')" class="px-5 py-2 text-xs font-bold rounded-lg bg-white shadow-sm text-blue-600 transition-all">Виторг</button>
+                        <button id="btnProf" onclick="switchMetric('profit')" class="px-5 py-2 text-xs font-bold rounded-lg text-slate-500 hover:text-slate-800 transition-all">Прибуток</button>
+                    </div>
+                </div>
+                <div class="h-[700px]">
+                    <canvas id="mainChart"></canvas>
+                </div>
+            </div>
+
+            <div class="text-center py-4">
+                <p class="text-slate-400 text-[10px] font-bold uppercase tracking-widest italic opacity-60">
+                   
+                </p>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // ТОЧНІ ДАНІ ДЛЯ ВСІХ 14 КАТЕГОРІЙ (Порядок місяців: Вер, Жов, Лис, Груд, Січ, Лют)
+        const categories = [
+            { name: "Компоненти", rev: [2613459, 2852649, 2886612, 3209443, 3250933, 3070784], prof: [1228653, 1500211, 1484187, 1747652, 1756389, 1660262] },
+            { name: "Ароматизатори", rev: [2013983, 2069223, 2005416, 2043027, 1915788, 2374281], prof: [873804, 983247, 1046685, 1056924, 991231, 1191581] },
+            { name: "Комплектуючі", rev: [1948710, 1850074, 2035522, 2068885, 1954962, 2052365], prof: [878818, 801142, 825694, 826943, 727702, 771969] },
+            { name: "Pod-системи", rev: [968642, 1066310, 1139008, 1276882, 1071037, 932158], prof: [325269, 388186, 409692, 486253, 423429, 363699] },
+            { name: "Чайна Суміш", rev: [77130, 95034, 102787, 107329, 85630, 96356], prof: [14621, 33091, 28279, 35525, 27309, 30909] },
+            { name: "Одноразові Pod-системи", rev: [0, 1700, 20180, 80364, 74333, 62486], prof: [0, 988, 10995, 40634, 37665, 30278] },
+            { name: "Кальяни та комплектуючі", rev: [30390, 26767, 31960, 35284, 27535, 39006], prof: [12231, 10333, 10927, 12856, 8439, 12401] },
+            { name: "CBD товари", rev: [18805, 21594, 26604, 24023, 10542, 16938], prof: [5632, 7882, 8139, 6162, 1643, 2304] },
+            { name: "Снюс", rev: [11496, 9365, 8171, 11362, 12432, 12793], prof: [3579, 2967, 2169, 3206, 3399, 3587] },
+            { name: "Мерч", rev: [3717, 4091, 5239, 3667, 6288, 5135], prof: [2512, 2548, 3219, 2241, 3936, 3255] },
+            { name: "Периферія", rev: [3000, 0, 11850, 5550, 0, 0], prof: [787, 0, 2934, 1102, 0, 0] },
+            { name: "Бонг Та Комплектуючі", rev: [388, 1626, 1552, 1141, 3825, 440], prof: [147, 843, 680, 593, 1977, 208] },
+            { name: "Запальнички", rev: [170, 100, 150, 175, 25, 229], prof: [10, 0, 10, 10, 10, 11] },
+            { name: "Напої", rev: [401, 148, 0, 0, 68, 150], prof: [131, 51, 0, 0, 17, 0] }
+        ];
+
+        const months = ['Вересень', 'Жовтень', 'Листопад', 'Грудень', 'Січень', 'Лютий'];
+        const colors = [
+            '#3b82f6', '#f59e0b', '#10b981', '#6366f1', '#ec4899', 
+            '#f43f5e', '#8b5cf6', '#06b6d4', '#84cc16', '#eab308',
+            '#f97316', '#14b8a6', '#475569', '#2dd4bf'
+        ];
+
+        let chart;
+        let activeCategories = categories.map(c => c.name);
+        let currentMetric = 'revenue';
+
+        function init() {
+            renderFilters();
+            renderChart();
+            updateActiveCount();
+        }
+
+        function renderFilters() {
+            const container = document.getElementById('categoryFilters');
+            categories.forEach((cat, index) => {
+                const div = document.createElement('div');
+                div.className = 'flex items-center space-x-3 p-2 hover:bg-slate-50 rounded-xl transition-all cursor-pointer group';
+                div.onclick = (e) => {
+                    if(e.target.tagName !== 'INPUT') {
+                        const cb = div.querySelector('input');
+                        cb.checked = !cb.checked;
+                        toggleCategory(cat.name);
+                    }
+                };
+                div.innerHTML = `
+                    <input type="checkbox" checked class="w-4 h-4 text-blue-600 rounded cursor-pointer border-slate-300 focus:ring-blue-500" onchange="toggleCategory('${cat.name}')">
+                    <span class="w-2.5 h-2.5 rounded-full shadow-sm" style="background-color: ${colors[index]}"></span>
+                    <span class="font-semibold text-slate-600 group-hover:text-slate-900 transition-colors">${cat.name}</span>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function toggleCategory(name) {
+            if (activeCategories.includes(name)) activeCategories = activeCategories.filter(n => n !== name);
+            else activeCategories.push(name);
+            updateCharts();
+            updateActiveCount();
+        }
+
+        function toggleAll(show) {
+            activeCategories = show ? categories.map(c => c.name) : [];
+            document.querySelectorAll('#categoryFilters input').forEach(i => i.checked = show);
+            updateCharts();
+            updateActiveCount();
+        }
+
+        function updateActiveCount() {
+            document.getElementById('activeCount').innerText = activeCategories.length + ' активних';
+        }
+
+        function switchMetric(metric) {
+            currentMetric = metric;
+            const btnRev = document.getElementById('btnRev');
+            const btnProf = document.getElementById('btnProf');
+            
+            if(metric === 'revenue') {
+                btnRev.className = 'px-5 py-2 text-xs font-bold rounded-lg bg-white shadow-sm text-blue-600 transition-all';
+                btnProf.className = 'px-5 py-2 text-xs font-bold rounded-lg text-slate-500 hover:text-slate-800 transition-all';
+            } else {
+                btnProf.className = 'px-5 py-2 text-xs font-bold rounded-lg bg-white shadow-sm text-emerald-600 transition-all';
+                btnRev.className = 'px-5 py-2 text-xs font-bold rounded-lg text-slate-500 hover:text-slate-800 transition-all';
+            }
+            updateCharts();
+        }
+
+        function renderChart() {
+            const ctx = document.getElementById('mainChart').getContext('2d');
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: { labels: months, datasets: [] },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: { 
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: '#1e293b',
+                            padding: 16,
+                            cornerRadius: 12,
+                            titleFont: { size: 14, weight: 'bold' },
+                            bodyFont: { size: 13 },
+                            callbacks: {
+                                label: (context) => ` ${context.dataset.label}: ${context.parsed.y.toLocaleString('uk-UA')} ₴`
+                            }
+                        }
+                    },
+                    scales: {
+                        y: { 
+                            ticks: { 
+                                callback: v => v.toLocaleString('uk-UA') + ' ₴', 
+                                font: { weight: '600', size: 11 }, 
+                                color: '#94a3b8' 
+                            },
+                            grid: { color: '#f1f5f9', borderDash: [5, 5] }
+                        },
+                        x: { 
+                            grid: { display: false },
+                            ticks: { font: { weight: '700', size: 12 }, color: '#64748b' }
+                        }
+                    }
+                }
+            });
+            updateCharts();
+        }
+
+        function updateCharts() {
+            chart.data.datasets = categories
+                .filter(cat => activeCategories.includes(cat.name))
+                .map((cat, index) => ({
+                    label: cat.name,
+                    data: currentMetric === 'revenue' ? cat.rev : cat.prof,
+                    borderColor: colors[index % colors.length],
+                    backgroundColor: colors[index % colors.length],
+                    borderWidth: 3,
+                    tension: 0.35,
+                    fill: false,
+                    pointRadius: 0,
+                    pointHoverRadius: 8,
+                    pointHitRadius: 10
+                }));
+            chart.update();
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
